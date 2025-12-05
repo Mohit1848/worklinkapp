@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global font + background */
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply font-sans bg-white text-gray-900;
+  }
+}
