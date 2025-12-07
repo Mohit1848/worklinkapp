@@ -8,7 +8,7 @@ import {
 } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
-// ===== FIREBASE CONFIG =====
+// ===== FIREBASE CONFIG (Kept outside for constants, but init logic is moved) =====
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBjdW87NyPDG-kUADfrhGklR31oQeOj_Tg",
     authDomain: "worklink-app-64dd1.firebaseapp.com",
@@ -22,25 +22,28 @@ const FIREBASE_CONFIG = {
 const appId = FIREBASE_CONFIG.projectId;
 const initialAuthToken = null;
 
-setLogLevel('debug');
+// The setLogLevel remains here since it's a global setting for Firebase logging
+setLogLevel('debug'); 
 
-let app, db, auth, analytics;
-if (FIREBASE_CONFIG.apiKey) {
-    app = initializeApp(FIREBASE_CONFIG);
-    db = getFirestore(app);
-    auth = getAuth(app);
-    try {
-        analytics = getAnalytics(app);
-    } catch (e) {
-        console.warn("Analytics failed:", e.message);
-    }
-}
+// --- OLD GLOBAL INIT BLOCK REMOVED/COMMENTED OUT ---
+// let app, db, auth, analytics;
+// if (FIREBASE_CONFIG.apiKey) {
+//     app = initializeApp(FIREBASE_CONFIG);
+//     db = getFirestore(app);
+//     auth = getAuth(app);
+//     try {
+//         analytics = getAnalytics(app);
+//     } catch (e) {
+//         console.warn("Analytics failed:", e.message);
+//     }
+// }
 
 const initialUser = { id: null, role: null, isAuthenticated: false };
 const JOBS_COLLECTION_PATH = `/artifacts/${appId}/public/data/jobs`;
+const USERS_COLLECTION_PATH = `/artifacts/${appId}/public/data/users`;
 const MAP_IMAGE_BASE_URL = "https://maps.googleapis.com/maps/api/staticmap?zoom=13&size=300x150&markers=color:red%7C";
 
-// ===== MESSAGE CARD COMPONENT =====
+// ===== MESSAGE CARD COMPONENT (No Change) =====
 const MessageCard = ({ title, children, type = 'info' }) => {
     let bgColor = "bg-teal-100 border-teal-400 text-teal-700";
     if (type === 'error') bgColor = "bg-red-100 border-red-400 text-red-700";
@@ -55,7 +58,7 @@ const MessageCard = ({ title, children, type = 'info' }) => {
     );
 };
 
-// ===== MAP DISPLAY COMPONENT =====
+// ===== MAP DISPLAY COMPONENT (No Change) =====
 const MapDisplay = ({ coords, jobLocation }) => {
     if (!coords || typeof coords.lat === 'undefined' || typeof coords.lng === 'undefined') {
         return <div className="text-center text-gray-500 italic p-4 bg-gray-50 rounded-lg">Location unavailable</div>;
@@ -83,7 +86,7 @@ const MapDisplay = ({ coords, jobLocation }) => {
     );
 };
 
-// ===== CLIENT JOB POSTING FORM =====
+// ===== CLIENT JOB POSTING FORM (No Change) =====
 const ClientPostJob = ({ user, db, onJobPosted, currentLocation, locationCoords }) => {
     const [title, setTitle] = useState('');
     const [skill, setSkill] = useState('');
@@ -227,7 +230,7 @@ const ClientPostJob = ({ user, db, onJobPosted, currentLocation, locationCoords 
     );
 };
 
-// ===== JOB ITEM COMPONENT =====
+// ===== JOB ITEM COMPONENT (No Change) =====
 const JobItem = ({ job, user, db, onJobAccepted }) => {
     const [loading, setLoading] = useState(false);
     const isClientJob = job.clientId === user.id;
@@ -300,11 +303,14 @@ const JobItem = ({ job, user, db, onJobAccepted }) => {
     );
 };
 
-// ===== AUTH FORM COMPONENT =====
+// ===== AUTH FORM COMPONENT - MODIFIED FOR WORKER SKILL & ONLOGIN CALL =====
 const AuthForm = ({ role, onLogin, onBack }) => {
     const [contact, setContact] = useState('');
     const [password, setPassword] = useState('');
+    const [skill, setSkill] = useState(''); // New state for worker skill
     const [error, setError] = useState(null);
+
+    const availableSkills = ['Mason', 'Carpenter', 'Plumber', 'Electrician', 'General Labor', 'Painter', 'House Helper'];
 
     const handleLogin = (e) => {
         e.preventDefault();
@@ -318,9 +324,14 @@ const AuthForm = ({ role, onLogin, onBack }) => {
             setError("Password must be 6+ characters.");
             return;
         }
+        if (role === 'worker' && !skill) { // New validation for worker skill
+            setError("Please select your primary skill.");
+            return;
+        }
 
         const uniqueToken = role + "-" + contact.toLowerCase().replace(/[^a-z0-9]/g, '');
-        onLogin(role, uniqueToken);
+        // Pass the raw contact info AND skill data up for Firestore profile creation
+        onLogin(role, uniqueToken, contact, skill); 
     };
 
     const mainColor = role === 'worker' ? 'bg-green-600 hover:bg-green-700' : 'bg-teal-600 hover:bg-teal-700';
@@ -354,12 +365,29 @@ const AuthForm = ({ role, onLogin, onBack }) => {
                     placeholder="Password (min 6 chars)"
                     className="w-full p-3 border-2 border-gray-300 rounded-lg text-center"
                 />
+                
+                {/* Conditional Skill Dropdown for Workers */}
+                {role === 'worker' && (
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Primary Skill</label>
+                        <select
+                            value={skill}
+                            onChange={(e) => setSkill(e.target.value)}
+                            className="w-full p-3 border-2 border-gray-300 rounded-lg text-center bg-white"
+                        >
+                            <option value="">Select your trade...</option>
+                            {availableSkills.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 {error && <p className='text-red-500 text-xs'>{error}</p>}
 
                 <button
                     type="submit"
-                    disabled={!contact || !password}
+                    disabled={!contact || !password || (role === 'worker' && !skill)}
                     className={`w-full py-3 text-white font-bold rounded-lg shadow-lg transition disabled:opacity-50 ${mainColor}`}
                 >
                     Login / Register
@@ -369,7 +397,7 @@ const AuthForm = ({ role, onLogin, onBack }) => {
     );
 };
 
-// ===== AUTH MODAL COMPONENT =====
+// ===== AUTH MODAL COMPONENT (No Change) =====
 const AuthModal = ({ role, setAuthView, onLogin }) => {
     let content;
     if (role === 'select') {
@@ -419,7 +447,7 @@ const AuthModal = ({ role, setAuthView, onLogin }) => {
     );
 };
 
-// ===== HOME PAGE - FIXED =====
+// ===== HOME PAGE - FIXED (No Change) =====
 const Home = ({ openAuthModal, setView }) => {
     return (
         <div className="w-full">
@@ -477,7 +505,7 @@ const Home = ({ openAuthModal, setView }) => {
     );
 };
 
-// ===== ABOUT US PAGE =====
+// ===== ABOUT US PAGE (No Change) =====
 const AboutUs = ({ setView }) => (
     <div className="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8 bg-white rounded-xl shadow-lg">
         <h1 className="text-4xl font-bold text-teal-800 border-b pb-3 mb-6">About WorkLink</h1>
@@ -498,7 +526,7 @@ const AboutUs = ({ setView }) => (
     </div>
 );
 
-// ===== SIMPLE CHATBOT COMPONENT =====
+// ===== SIMPLE CHATBOT COMPONENT (No Change) =====
 const ChatBot = ({ jobs, user }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');
@@ -667,7 +695,7 @@ const ChatBot = ({ jobs, user }) => {
     );
 };
 
-// ===== MAIN APP COMPONENT =====
+// ===== MAIN APP COMPONENT - MODIFIED FOR INIT FIX & ENHANCED LOGIN =====
 const App = () => {
     const [view, setView] = useState('home');
     const [authView, setAuthView] = useState(null);
@@ -678,8 +706,14 @@ const App = () => {
     const [fetchError, setFetchError] = useState(null);
     const [currentLocation, setCurrentLocation] = useState('Fetching Location...');
     const [locationCoords, setLocationCoords] = useState(null);
+    
+    // --- NEW STATE FOR FIREBASE INSTANCES ---
+    const [firebaseInstances, setFirebaseInstances] = useState({ app: null, db: null, auth: null });
 
-    // Geolocation
+    // Destructure instances for easier use in hooks
+    const { db, auth } = firebaseInstances;
+
+    // Geolocation (No Change)
     useEffect(() => {
         if (!navigator.geolocation) {
             setCurrentLocation("Location unavailable");
@@ -704,33 +738,67 @@ const App = () => {
         });
     }, []);
 
-    // Firebase Auth
+    // --- FIREBASE INITIALIZATION AND AUTH FIX ---
     useEffect(() => {
-        if (!app) return;
-
-        const handleAuth = async () => {
+        // Initialize Firebase instances inside the component lifecycle
+        if (FIREBASE_CONFIG.apiKey && !firebaseInstances.app) {
             try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
+                const firebaseApp = initializeApp(FIREBASE_CONFIG);
+                const firestoreDb = getFirestore(firebaseApp);
+                const firestoreAuth = getAuth(firebaseApp);
+                try {
+                    // Initialize analytics, but catch is handled locally
+                    getAnalytics(firebaseApp);
+                } catch (e) {
+                    console.warn("Analytics failed:", e.message);
                 }
-            } catch (error) {
-                console.error("Firebase Auth Error:", error);
+                
+                // Store instances in state
+                setFirebaseInstances({ 
+                    app: firebaseApp, 
+                    db: firestoreDb, 
+                    auth: firestoreAuth 
+                });
+            } catch (e) {
+                console.error("Firebase Initialization Error:", e);
+                // Fail fast to allow app to render, showing "Connecting..." error
+                setIsAuthReady(true);
             }
-        };
+        }
+        
+        // Handle Authentication state change once auth instance is ready
+        if (auth) {
+            const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+                // Set isAuthReady to true once the auth state is known, fixing the "Connecting..." loop
+                setIsAuthReady(true);
+            });
 
-        const unsubscribe = onAuthStateChanged(auth, () => {
-            setIsAuthReady(true);
-        });
+            // Attempt initial anonymous sign-in
+            const handleAuth = async () => {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Firebase Auth Error (Initial Anonymous):", error);
+                }
+            };
+            
+            // Only attempt sign-in if the app is not already authenticated
+            if (!auth.currentUser) {
+                handleAuth();
+            }
 
-        handleAuth();
-        return () => unsubscribe();
-    }, []);
+            return () => unsubscribe();
+        }
+    }, [firebaseInstances.app, auth]);
 
-    // Fetch Jobs
+
+    // Fetch Jobs (Modified to depend on new 'db' variable)
     const fetchJobs = useCallback(() => {
-        if (!isAuthReady || !db) return;
+        if (!isAuthReady || !db) return; // Use destructured 'db'
 
         setLoadingJobs(true);
         setFetchError(null);
@@ -759,7 +827,7 @@ const App = () => {
 
         startListening();
         return () => unsubscribe();
-    }, [isAuthReady]);
+    }, [isAuthReady, db]); // ADDED 'db' as dependency
 
     useEffect(() => {
         if (user.isAuthenticated) {
@@ -767,10 +835,42 @@ const App = () => {
         }
     }, [user.isAuthenticated, fetchJobs]);
 
-    const handleLogin = (role, simulatedUserId) => {
+    // --- ENHANCED handleLogin FUNCTION ---
+    const handleLogin = async (role, simulatedUserId, contactInfo, skillData) => {
+        // 1. Client-side authentication (Simulated)
         setUser({ id: simulatedUserId, role: role, isAuthenticated: true });
         setAuthView(null);
         setView(role);
+
+        // 2. Create/Update User Profile in Firestore
+        if (!db) {
+            console.error("Firestore database is not initialized. Cannot save profile.");
+            return;
+        }
+
+        try {
+            const userRef = doc(db, USERS_COLLECTION_PATH, simulatedUserId);
+            
+            const profileData = {
+                id: simulatedUserId,
+                role: role,
+                contact: contactInfo,
+                lastLogin: serverTimestamp(),
+                profileStatus: 'created', 
+            };
+            
+            // Conditionally add skill for workers
+            if (role === 'worker' && skillData) {
+                profileData.primarySkill = skillData;
+            }
+            
+            await setDoc(userRef, profileData, { merge: true });
+            
+            console.log(`User ${role} profile saved/updated in Firestore: ${simulatedUserId}`);
+
+        } catch (error) {
+            console.error("Error creating/updating user profile in Firestore:", error);
+        }
     };
 
     const handleLogout = () => {
@@ -779,7 +879,7 @@ const App = () => {
         setAuthView(null);
     };
 
-    // Render Dashboards
+    // Render Dashboards (No Change)
     const renderClientDashboard = () => {
         const myJobs = jobs.filter(job => job.clientId === user.id);
         return (
@@ -895,12 +995,20 @@ const App = () => {
                             Sign In / Up
                         </button>
                     ) : (
-                        <button
-                            onClick={handleLogout}
-                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-md transition"
-                        >
-                            Logout
-                        </button>
+                        <div className='flex items-center space-x-4'>
+                            {/* Display User Role/ID in Header */}
+                            <div className={`px-3 py-1 text-sm font-semibold rounded-full 
+                                ${user.role === 'client' ? 'bg-teal-100 text-teal-800' : 'bg-green-100 text-green-800'}`}>
+                                {user.role === 'worker' ? `Worker (${user.id.substring(0, 4)})` : `Client (${user.id.substring(0, 4)})`}
+                            </div>
+                            
+                            <button
+                                onClick={handleLogout}
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-md transition"
+                            >
+                                Logout
+                            </button>
+                        </div>
                     )}
                 </div>
             </header>
@@ -965,8 +1073,3 @@ const App = () => {
 };
 
 export default App;
-
-
-
-
-
