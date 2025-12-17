@@ -1,0 +1,2 @@
+cd worklink-app
+npm run dev
