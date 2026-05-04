@@ -8,16 +8,6 @@ import {
 } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
-// ===== FIREBASE CONFIG =====
-const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyBjdW87NyPDG-kUADfrhGklR31oQeOj_Tg",
-    authDomain: "worklink-app-64dd1.firebaseapp.com",
-    projectId: "worklink-app-64dd1",
-    storageBucket: "worklink-app-64dd1.firebasestorage.app",
-    messagingSenderId: "42985181172",
-    appId: "1:42985181172:web:4c9fe43c372fa7f62073a1",
-    measurementId: "G-S1LNG6CG50"
-};
 
 const appId = FIREBASE_CONFIG.projectId;
 const initialAuthToken = null;
